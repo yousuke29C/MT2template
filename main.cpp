@@ -1,4 +1,5 @@
 #include <DxLib.h>
+#include <vector>
 #include "Vector3.h"
 #include <cstring> //memcpy
 
@@ -13,6 +14,9 @@ int SetCameraPositionAndTargetAndUpVec(
 	const Vector3& cameraTarget,	//カメラの注視点
 	const Vector3& cameraUp			//カメラの上の向き
 );
+
+//制御点の集合(vectorコンテナ)、補間する区間の添字、時間経過率
+Vector3 splinePosition(const std::vector<Vector3>& point, size_t startIndex, float t);
 
 //球の描画
 //Dxlib => int DrawSphere3D(VECTOR CenterPos,float r,int DivNum,unsigned int DifColor,unsigned int SpcColor,int FillFlag);
@@ -47,10 +51,10 @@ int WINAPI WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _
 	SetCameraNearFar(1.0f, 1000.0f);//カメラの有効範囲の設定
 	SetCameraScreenCenter(WindowWidth / 2.0f, WindowHeight / 2.0f);//画面の中心をカメラの中心に合わせる
 	SetCameraPositionAndTargetAndUpVec(
-		//Vector3(0.0f, 0.0f, -120.0f),			//カメラの位置
-		Vector3(0.0f, 200.0f, 0.0f),				//カメラの位置
+		Vector3(-20.0f, 20.0f, -200.0f),			//カメラの位置
+		//Vector3(0.0f, 200.0f,0.0f),				//カメラの位置
 		Vector3(0.0f, 0.0f, 0.0f),				//カメラの注視点
-		Vector3(0.0f, 0.0f, 1.0f)				//カメラの上の向き
+		Vector3(0.0f, 1.0f, 0.0f)				//カメラの上の向き
 	);
 
 	//時間計算に必要なデータ
@@ -60,10 +64,16 @@ int WINAPI WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _
 
 	//補間で使うデータ
 	//start → end を5秒で完了させる
-	Vector3 p0(-100.0f, 0, 0);			//スタート地点
-	Vector3 p1(-50.0f, 0.0f, 100.0f);	//制御点その1
-	Vector3 p2(50.0f, 0.0f, -100.0f);	//制御点その2
-	Vector3 p3(100.0f, 0.0f, 0.0f);		//ゴール地点
+	Vector3 start(-100.0f, 0, 0);		//スタート地点
+	Vector3 p2(-50.0f, 50.0f, +50.0f);	//制御点その1
+	Vector3 p3(+50.0f, -30.0f, -50.0f);	//制御点その2
+	Vector3 end(100.0f, 0.0f, 0.0f);	//ゴール地点
+
+	//				p1 - p2 - p3 - p4 を通るスプライン曲線を考える
+	//					先頭(p0)と最後(p5)に制御点を追加している
+	//								p0	p1			p4	p5
+	std::vector<Vector3> points{ start,start,p2,p3,end,end };
+
 	float maxTime = 5.0f;				//全体時間[s]
 	float timeRate;						//何％時間が進んだか
 
@@ -73,6 +83,9 @@ int WINAPI WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _
 	//実行前にカウント値を取得
 	startCount = GetNowHiPerformanceCount(); //long long int型 64bit int
 
+	//P1からスタートする
+	size_t startIndex = 1;
+
 	//ゲームループ
 	while (ProcessMessage() == 0 && CheckHitKey(KEY_INPUT_ESCAPE) == 0) {
 
@@ -81,6 +94,7 @@ int WINAPI WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _
 		//[R]でリセット
 		if (CheckHitKey(KEY_INPUT_R)) {
 			startCount = GetNowHiPerformanceCount();
+			startIndex = 1;
 		}
 
 		//経過時間(elapsedTime[s])の計算
@@ -93,16 +107,25 @@ int WINAPI WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _
 		//経過時間		: elapsed[s]
 		//移動完了の率	(経過時間/全体時間) : timeRate(％)
 
-		timeRate = min(elapsedTime / maxTime, 1.0f);
+		//timeRate = min(elapsedTime / maxTime, 1.0f);
 
-		Vector3 a = lerp(p0, p1, timeRate);
-		Vector3 b = lerp(p1, p2, timeRate);
-		Vector3 c = lerp(p2, p3, timeRate);
+		timeRate = elapsedTime / maxTime;
+		//timeRateが1.0f以上になったら、次の区間に進む
 
-		Vector3 d = lerp(a, b, timeRate);
-		Vector3 e = lerp(b, c, timeRate);
+		if (timeRate >= 1.0f) {
+			if (startIndex < points.size() - 3) {
 
-		position = lerp(d, e, timeRate);
+				startIndex++;
+
+				timeRate -= 1.0f;
+				startCount = GetNowHiPerformanceCount();
+			}
+			else {
+				timeRate = 1.0f;
+			}
+		}
+		position = splinePosition(points, startIndex, timeRate);
+
 		//position = easeIn(start,end,timerate);
 		//position = easeOut(start,end,timerate);
 		//position = easeInOut(start,end,timerate);
@@ -112,15 +135,23 @@ int WINAPI WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _
 		DrawAxis3D(500.0f);	//xyz軸の描画
 
 		//球の描画
-		DrawSphere3D(position, 5.0f, 32, GetColor(255, 0, 0), GetColor(255, 255, 255), TRUE);
-		DrawSphere3D(p0, 2.5f, 32, GetColor(0, 255, 0), GetColor(255, 255, 255), TRUE);
-		DrawSphere3D(p1, 2.5f, 32, GetColor(0, 255, 0), GetColor(255, 255, 255), TRUE);
+		DrawSphere3D(start, 2.5f, 32, GetColor(0, 255, 0), GetColor(255, 255, 255), TRUE);
 		DrawSphere3D(p2, 2.5f, 32, GetColor(0, 255, 0), GetColor(255, 255, 255), TRUE);
 		DrawSphere3D(p3, 2.5f, 32, GetColor(0, 255, 0), GetColor(255, 255, 255), TRUE);
+		DrawSphere3D(end, 2.5f, 32, GetColor(0, 255, 0), GetColor(255, 255, 255), TRUE);
+
+		DrawSphere3D(position, 5.0f, 32, GetColor(255, 0, 0), GetColor(255, 255, 255), TRUE);
 
 		DrawFormatString(0, 0, GetColor(255, 255, 255), "position (%5.1f,%5.1f,%5.1f)", position.x, position.y, position.z);
-		DrawFormatString(0, 20, GetColor(255, 255, 255), "%7.3f[s]", elapsedTime);
-		DrawFormatString(0, 40, GetColor(255, 255, 255), "[R]: Restart");
+		DrawFormatString(0, 20, GetColor(255, 255, 255), "startIndex %d", startIndex);
+		DrawFormatString(0, 40, GetColor(255, 255, 255), "timeRate %7.3f[s]", timeRate);
+		DrawFormatString(0, 60, GetColor(255, 255, 255), "elapsedTime %7.3f[s]", elapsedTime);
+		DrawFormatString(0, 80, GetColor(255, 255, 255), "[R]: Restart");
+
+		DrawFormatString(0, 100, GetColor(255, 255, 255), "start (%6.1f,%6.1f,%6.1f)", start.x, start.y, start.z);
+		DrawFormatString(0, 120, GetColor(255, 255, 255), "p2    (%6.1f,%6.1f,%6.1f)", p2.x, p2.y, p2.z);
+		DrawFormatString(0, 140, GetColor(255, 255, 255), "p3    (%6.1f,%6.1f,%6.1f)", p3.x, p3.y, p3.z);
+		DrawFormatString(0, 160, GetColor(255, 255, 255), "end   (%6.1f,%6.1f,%6.1f)", end.x, end.y, end.z);
 		//フリップする
 		ScreenFlip();
 	}
@@ -184,4 +215,26 @@ int SetCameraPositionAndTargetAndUpVec(
 	VECTOR up = { cameraUp.x,cameraUp.y,cameraUp.z };
 
 	return SetCameraPositionAndTargetAndUpVec(position, target, up);
+}
+
+Vector3 splinePosition(const std::vector<Vector3>& points, size_t startIndex, float t) {
+	//補間すべき点
+	size_t n = points.size() - 2;
+
+	if (startIndex > n) return points[n];
+	if (startIndex < 1) return points[1];
+
+	//p0~p3の制御点を取得する
+	Vector3 p0 = points[startIndex - 1];
+	Vector3 p1 = points[startIndex];
+	Vector3 p2 = points[startIndex + 1];
+	Vector3 p3 = points[startIndex + 2];
+
+	//Catmull-Rom の式による補間
+	Vector3 position = 0.5 * (p1 * 2 + (-p0 + p2) *
+		t + (p0 * 2 - p1 * 5 + p2 * 4 - p3) *
+		(t * t) + (-p0 + p1 * 3 - p2 * 3 + p3) *
+		(t * t * t));
+
+	return position;
 }
