@@ -11,7 +11,7 @@ int DrawLine3D(const Vector3& Pos1, const Vector3& Pos2, const unsigned int Colo
 int SetCameraPositionAndTargetAndUpVec(
 	const Vector3& cameraPosition,	//カメラの位置
 	const Vector3& cameraTarget,	//カメラの注視点
-	const Vector3& cameraUp			//カメラの上の向き
+	const Vector3& cameraUp			//カメラの上の向き 
 );
 
 //球の描画
