@@ -11,7 +11,7 @@ int DrawLine3D(const Vector3& Pos1, const Vector3& Pos2, const unsigned int Colo
 int SetCameraPositionAndTargetAndUpVec(
 	const Vector3& cameraPosition,	//カメラの位置
 	const Vector3& cameraTarget,	//カメラの注視点
-	const Vector3& cameraUp			//カメラの上の向き 
+	const Vector3& cameraUp			//カメラの上の向き
 );
 
 //球の描画
@@ -47,10 +47,10 @@ int WINAPI WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _
 	SetCameraNearFar(1.0f, 1000.0f);//カメラの有効範囲の設定
 	SetCameraScreenCenter(WindowWidth / 2.0f, WindowHeight / 2.0f);//画面の中心をカメラの中心に合わせる
 	SetCameraPositionAndTargetAndUpVec(
-		Vector3(0.0f, 0.0f, -120.0f),			//カメラの位置
-		//Vector3(-20.0f,20.0f,-120.0f),		//カメラの位置
+		//Vector3(0.0f, 0.0f, -120.0f),			//カメラの位置
+		Vector3(0.0f, 200.0f, 0.0f),				//カメラの位置
 		Vector3(0.0f, 0.0f, 0.0f),				//カメラの注視点
-		Vector3(0.0f, 1.0f, 0.0f)				//カメラの上の向き
+		Vector3(0.0f, 0.0f, 1.0f)				//カメラの上の向き
 	);
 
 	//時間計算に必要なデータ
@@ -60,10 +60,12 @@ int WINAPI WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _
 
 	//補間で使うデータ
 	//start → end を5秒で完了させる
-	Vector3 start(-100.0f, 0, 0);	//スタート地点
-	Vector3 end(100.0f, 0, 0);		//エンド地点
-	float maxTime = 5.0f;			//全体時間[s]
-	float timeRate;					//何％時間が進んだか
+	Vector3 p0(-100.0f, 0, 0);			//スタート地点
+	Vector3 p1(-50.0f, 0.0f, 100.0f);	//制御点その1
+	Vector3 p2(50.0f, 0.0f, -100.0f);	//制御点その2
+	Vector3 p3(100.0f, 0.0f, 0.0f);		//ゴール地点
+	float maxTime = 5.0f;				//全体時間[s]
+	float timeRate;						//何％時間が進んだか
 
 	//球の位置
 	Vector3 position;
@@ -93,7 +95,14 @@ int WINAPI WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _
 
 		timeRate = min(elapsedTime / maxTime, 1.0f);
 
-		position = lerp(start, end, timeRate);
+		Vector3 a = lerp(p0, p1, timeRate);
+		Vector3 b = lerp(p1, p2, timeRate);
+		Vector3 c = lerp(p2, p3, timeRate);
+
+		Vector3 d = lerp(a, b, timeRate);
+		Vector3 e = lerp(b, c, timeRate);
+
+		position = lerp(d, e, timeRate);
 		//position = easeIn(start,end,timerate);
 		//position = easeOut(start,end,timerate);
 		//position = easeInOut(start,end,timerate);
@@ -104,6 +113,10 @@ int WINAPI WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _
 
 		//球の描画
 		DrawSphere3D(position, 5.0f, 32, GetColor(255, 0, 0), GetColor(255, 255, 255), TRUE);
+		DrawSphere3D(p0, 2.5f, 32, GetColor(0, 255, 0), GetColor(255, 255, 255), TRUE);
+		DrawSphere3D(p1, 2.5f, 32, GetColor(0, 255, 0), GetColor(255, 255, 255), TRUE);
+		DrawSphere3D(p2, 2.5f, 32, GetColor(0, 255, 0), GetColor(255, 255, 255), TRUE);
+		DrawSphere3D(p3, 2.5f, 32, GetColor(0, 255, 0), GetColor(255, 255, 255), TRUE);
 
 		DrawFormatString(0, 0, GetColor(255, 255, 255), "position (%5.1f,%5.1f,%5.1f)", position.x, position.y, position.z);
 		DrawFormatString(0, 20, GetColor(255, 255, 255), "%7.3f[s]", elapsedTime);
